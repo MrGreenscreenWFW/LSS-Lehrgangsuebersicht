@@ -2,7 +2,7 @@
 // @name         Lehrgangsplanung Leitstellenspiel
 // @namespace    http://tampermonkey.net/
 // @version      0.5
-// @description  Ein Script zur Lehrgangsplanung und Anzeige vorhandener Lehrgänge im Leitstellenspiel
+// @description  Ein Script zur Anzeige vorhandener Lehrgänge im Leitstellenspiel
 // @author       MrGreenscreen
 // @match        https://www.leitstellenspiel.de/*
 // @grant        none
@@ -20,7 +20,7 @@
     button.style.left = "50%";
     button.style.transform = "translateX(-50%)";
     button.style.zIndex = 1000;
-    button.style.color = "black"; // Schriftfarbe auf Schwarz setzen
+    button.style.color = "black";
     document.body.appendChild(button);
 
     // Event-Listener für den Button
@@ -50,10 +50,10 @@
         modalWindow.style.transform = "translate(-50%, -50%)";
         modalWindow.style.width = "600px";
         modalWindow.style.height = "70%";
-        modalWindow.style.overflowY = "scroll"; // Scrollbar hinzufügen
+        modalWindow.style.overflowY = "scroll";
         modalWindow.style.padding = "20px";
-        modalWindow.style.backgroundColor = "#808080"; // Hintergrundfarbe auf Grau setzen
-        modalWindow.style.color = "black"; // Schriftfarbe auf Schwarz setzen
+        modalWindow.style.backgroundColor = "#808080";
+        modalWindow.style.color = "black";
         modalWindow.style.zIndex = 1001;
         modalWindow.id = "modalWindow";
         modalBackground.appendChild(modalWindow);
@@ -74,7 +74,7 @@
         modalWindow.appendChild(lehrgaengeList);
 
         fetchButton.addEventListener("click", function() {
-            console.log("Fetching existing courses..."); // Debugging-Meldung
+            // console.log("Fetching existing courses..."); // Debugging-Meldung
             getLehrgaenge(lehrgaengeList);
         });
 
@@ -126,10 +126,10 @@
                 throw new Error(`Network response was not ok for /api/buildings: ${response.statusText}`);
             }
             var buildings = await response.json();
-            console.log("Buildings fetched:", buildings); // Debugging-Meldung
+            // console.log("Buildings fetched:", buildings); // Debugging-Meldung
 
             for (let building of buildings) {
-                console.log(`Processing building: ID=${building.id}, Name=${building.name}`); // Debugging-Meldung
+                // console.log(`Processing building: ID=${building.id}, Name=${building.name}`); // Debugging-Meldung
 
                 // Abrufen des Personals der Wache von der neuen URL
                 let personalsResponse = await fetch(`/buildings/${building.id}/personals`);
@@ -141,7 +141,7 @@
                 let doc = parser.parseFromString(personalsHtml, 'text/html');
                 let personnelElements = doc.querySelectorAll('table#personal_table > tbody > tr');
 
-                console.log(`Personnel for building ${building.id} fetched:`, personnelElements); // Debugging-Meldung
+                // console.log(`Personnel for building ${building.id} fetched:`, personnelElements); // Debugging-Meldung
 
                 var IPersonal = Array.from(personnelElements).map(personElement => {
                     return Array.from(personElement.querySelector('td:nth-child(2)').textContent.split(',')).map(Education => Education.trim());
@@ -170,15 +170,15 @@
                     });
                 });
 
-                console.log(`Statistics for building ${building.id}:`, IStatistic); // Debugging-Meldung
+                // console.log(`Statistics for building ${building.id}:`, IStatistic); // Debugging-Meldung
             }
         } catch (error) {
-            console.error("Error fetching data:", error); // Debugging-Meldung
+            // console.error("Error fetching data:", error); // Debugging-Meldung
             container.innerText = `Fehler beim Abrufen der Daten: ${error.message}`; // Fehleranzeige
             return;
         }
 
-        console.log("Fetched courses:", lehrgaenge); // Debugging-Meldung
+        // console.log("Fetched courses:", lehrgaenge); // Debugging-Meldung
 
         if (lehrgaenge.length > 0) {
             var table = document.createElement("table");
@@ -212,6 +212,7 @@
                 var cellLehrgang = document.createElement("td");
                 cellLehrgang.innerText = lehrgang.lehrgang;
                 cellLehrgang.style.border = "1px solid black";
+                // WiP
                 if (lehrgang.overAssigned) {
                     cellLehrgang.style.backgroundColor = "red"; // Hintergrundfarbe für überzähliges Personal
                 }
