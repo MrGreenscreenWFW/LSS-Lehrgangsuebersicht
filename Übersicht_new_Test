@@ -1,0 +1,245 @@
+// ==UserScript==
+// @name         Lehrgangsplanung Leitstellenspiel
+// @namespace    http://tampermonkey.net/
+// @version      2.0
+// @description  Ein Script zur Lehrgangsplanung und Anzeige vorhandener Lehrgänge im Leitstellenspiel
+// @author       MrGreenscreen
+// @match        https://www.leitstellenspiel.de/*
+// @grant        none
+// @require      https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    var button = document.createElement("button");
+    button.innerHTML = "Lehrgangsübersicht";
+    button.style.position = "fixed";
+    button.style.top = "10px";
+    button.style.left = "50%";
+    button.style.transform = "translateX(-50%)";
+    button.style.zIndex = 1000;
+    button.style.color = "black";
+    document.body.appendChild(button);
+
+    button.addEventListener("click", function() {
+        openModal();
+    });
+
+    function openModal() {
+        var modalBackground = document.createElement("div");
+        modalBackground.style.position = "fixed";
+        modalBackground.style.top = "0";
+        modalBackground.style.left = "0";
+        modalBackground.style.width = "100%";
+        modalBackground.style.height = "100%";
+        modalBackground.style.backgroundColor = "rgba(0,0,0,0.5)";
+        modalBackground.style.zIndex = 1000;
+        modalBackground.id = "modalBackground";
+        document.body.appendChild(modalBackground);
+
+        var modalWindow = document.createElement("div");
+        modalWindow.style.position = "fixed";
+        modalWindow.style.top = "50%";
+        modalWindow.style.left = "50%";
+        modalWindow.style.transform = "translate(-50%, -50%)";
+        modalWindow.style.width = "600px";
+        modalWindow.style.height = "70%";
+        modalWindow.style.overflowY = "scroll";
+        modalWindow.style.padding = "20px";
+        modalWindow.style.backgroundColor = "#808080";
+        modalWindow.style.color = "black";
+        modalWindow.style.zIndex = 1001;
+        modalWindow.id = "modalWindow";
+        modalBackground.appendChild(modalWindow);
+
+        var title = document.createElement("h2");
+        title.innerHTML = "Lehrgangsübersicht";
+        modalWindow.appendChild(title);
+
+        var buttonContainer = document.createElement("div");
+        buttonContainer.style.position = "absolute";
+        buttonContainer.style.top = "20px";
+        buttonContainer.style.right = "20px";
+        modalWindow.appendChild(buttonContainer);
+
+        var closeButton = document.createElement("button");
+        closeButton.innerHTML = "Schließen";
+        closeButton.style.marginRight = "10px";
+        closeButton.addEventListener("click", function() {
+            closeModal();
+        });
+        buttonContainer.appendChild(closeButton);
+
+        var exportButton = document.createElement("button");
+        exportButton.innerHTML = "Exportieren";
+        exportButton.disabled = true;
+        exportButton.addEventListener("click", function() {
+            exportTableToExcel('lehrgaengeTable', 'lehrgaenge.xlsx');
+        });
+        buttonContainer.appendChild(exportButton);
+
+        var loadingBar = document.createElement("div");
+        loadingBar.style.display = "none";
+        loadingBar.style.width = "100%";
+        loadingBar.style.backgroundColor = "#ccc";
+        loadingBar.innerHTML = '<div style="width: 100%; height: 30px; background-color: #4caf50; text-align: center; line-height: 30px; color: white; animation: loading 2s infinite;"></div>';
+        modalWindow.appendChild(loadingBar);
+
+        var style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes loading {
+                0% {transform: translateX(-100%);}
+                50% {transform: translateX(0%);}
+                100% {transform: translateX(100%);}
+            }
+        `;
+        document.head.appendChild(style);
+
+        var fetchButton = document.createElement("button");
+        fetchButton.innerHTML = "Vorhandene Lehrgänge abrufen";
+        fetchButton.style.marginBottom = "20px";
+        fetchButton.addEventListener("click", function() {
+            exportButton.disabled = true;
+            loadingBar.style.display = "block";
+            getLehrgaenge(lehrgaengeList, loadingBar, exportButton);
+        });
+        modalWindow.appendChild(fetchButton);
+
+        var lehrgaengeList = document.createElement("div");
+        lehrgaengeList.id = "lehrgaengeList";
+        modalWindow.appendChild(lehrgaengeList);
+
+        modalBackground.addEventListener("click", function(event) {
+            if (event.target == modalBackground) {
+                closeModal();
+            }
+        });
+    }
+
+    function closeModal() {
+        var modalBackground = document.getElementById("modalBackground");
+        if (modalBackground) {
+            modalBackground.remove();
+        }
+    }
+
+    async function getLehrgaenge(container, loadingBar, exportButton) {
+        container.innerHTML = '';
+
+        var lehrgaenge = [];
+
+        try {
+            var response = await fetch('/api/buildings');
+            if (!response.ok) {
+                throw new Error(`Network response was not ok for /api/buildings: ${response.statusText}`);
+            }
+            var buildings = await response.json();
+
+            for (let building of buildings) {
+                let personalsResponse = await fetch(`/buildings/${building.id}/personals`);
+                if (!personalsResponse.ok) {
+                    throw new Error(`Network response was not ok for /buildings/${building.id}/personals: ${personalsResponse.statusText}`);
+                }
+                let personalsHtml = await personalsResponse.text();
+                let parser = new DOMParser();
+                let doc = parser.parseFromString(personalsHtml, 'text/html');
+                let personnelElements = doc.querySelectorAll('table#personal_table > tbody > tr');
+
+                var IPersonal = Array.from(personnelElements).map(personElement => {
+                    return Array.from(personElement.querySelector('td:nth-child(2)').textContent.split(',')).map(Education => Education.trim());
+                });
+
+                var IStatistic = {};
+
+                IPersonal.forEach(Personal => {
+                    if (Personal.length == 1 && Personal[0] == '') {
+                        if (!IStatistic.hasOwnProperty('empty')) IStatistic['empty'] = 0;
+                        IStatistic['empty']++;
+                    } else {
+                        Personal.forEach(Education => {
+                            if (!IStatistic.hasOwnProperty(Education)) IStatistic[Education] = 0;
+                            IStatistic[Education]++;
+                        });
+                    }
+                });
+
+                Object.keys(IStatistic).forEach(Statistic => {
+                    lehrgaenge.push({
+                        wache: building.caption,
+                        lehrgang: `${IStatistic[Statistic]}x ${Statistic}`,
+                        totalPersonnel: personnelElements.length,
+                        overAssigned: IStatistic[Statistic] > personnelElements.length
+                    });
+                });
+            }
+        } catch (error) {
+            container.innerText = `Fehler beim Abrufen der Daten: ${error.message}`;
+            loadingBar.style.display = "none";
+            return;
+        }
+
+        if (lehrgaenge.length > 0) {
+            var table = document.createElement("table");
+            table.id = "lehrgaengeTable";
+            table.style.width = "100%";
+            table.style.borderCollapse = "collapse";
+            var thead = document.createElement("thead");
+            var tbody = document.createElement("tbody");
+
+            var headerRow = document.createElement("tr");
+            var headerWache = document.createElement("th");
+            headerWache.innerText = "Wache";
+            headerWache.style.border = "1px solid black";
+            var headerLehrgang = document.createElement("th");
+            headerLehrgang.innerText = "Lehrgang";
+            headerLehrgang.style.border = "1px solid black";
+            var headerTotalPersonnel = document.createElement("th");
+            headerTotalPersonnel.innerText = "Gesamtpersonal";
+            headerTotalPersonnel.style.border = "1px solid black";
+            headerRow.appendChild(headerWache);
+            headerRow.appendChild(headerLehrgang);
+            headerRow.appendChild(headerTotalPersonnel);
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            lehrgaenge.forEach(function(lehrgang) {
+                var row = document.createElement("tr");
+                var cellWache = document.createElement("td");
+                cellWache.innerText = lehrgang.wache;
+                cellWache.style.border = "1px solid black";
+                var cellLehrgang = document.createElement("td");
+                cellLehrgang.innerText = lehrgang.lehrgang;
+                cellLehrgang.style.border = "1px solid black";
+                if (lehrgang.overAssigned) {
+                    cellLehrgang.style.backgroundColor = "red";
+                }
+                var cellTotalPersonnel = document.createElement("td");
+                cellTotalPersonnel.innerText = lehrgang.totalPersonnel;
+                cellTotalPersonnel.style.border = "1px solid black";
+                row.appendChild(cellWache);
+                row.appendChild(cellLehrgang);
+                row.appendChild(cellTotalPersonnel);
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(tbody);
+            container.appendChild(table);
+        } else {
+            container.innerText = "Keine Lehrgänge gefunden.";
+        }
+
+        loadingBar.style.display = "none";
+        exportButton.disabled = false;
+    }
+
+    function exportTableToExcel(tableID, filename = '') {
+        var wb = XLSX.utils.book_new();
+        var ws = XLSX.utils.table_to_sheet(document.getElementById(tableID));
+        XLSX.utils.book_append_sheet(wb, ws, 'Lehrgaenge');
+
+        filename = filename ? filename : 'lehrgaenge.xlsx';
+
+        XLSX.writeFile(wb, filename);
+    }
+})();
