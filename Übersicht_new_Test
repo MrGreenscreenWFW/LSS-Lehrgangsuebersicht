@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Lehrgangsplanung Leitstellenspiel
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Ein Script zur Lehrgangsplanung und Anzeige vorhandener Lehrgänge im Leitstellenspiel
+// @version      0.5.1
+// @description  Ein Script zur Anzeige vorhandener Lehrgänge im Leitstellenspiel
 // @author       MrGreenscreen
 // @match        https://www.leitstellenspiel.de/*
 // @grant        none
