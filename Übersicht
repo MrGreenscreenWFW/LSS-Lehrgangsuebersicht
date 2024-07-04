@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lehrgangsplanung Leitstellenspiel
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.6
 // @description  Ein Script zur Anzeige vorhandener Lehrgänge im Leitstellenspiel
 // @author       MrGreenscreen
 // @match        https://www.leitstellenspiel.de/*
@@ -12,7 +12,6 @@
 (function() {
     'use strict';
 
-    // Button hinzufügen
     var button = document.createElement("button");
     button.innerHTML = "Lehrgangsübersicht";
     button.style.position = "fixed";
@@ -23,14 +22,11 @@
     button.style.color = "black";
     document.body.appendChild(button);
 
-    // Event-Listener für den Button
     button.addEventListener("click", function() {
         openModal();
     });
 
-    // Modal-Funktion
     function openModal() {
-        // Modal-Hintergrund
         var modalBackground = document.createElement("div");
         modalBackground.style.position = "fixed";
         modalBackground.style.top = "0";
@@ -42,7 +38,6 @@
         modalBackground.id = "modalBackground";
         document.body.appendChild(modalBackground);
 
-        // Modal-Fenster
         var modalWindow = document.createElement("div");
         modalWindow.style.position = "fixed";
         modalWindow.style.top = "50%";
@@ -58,46 +53,78 @@
         modalWindow.id = "modalWindow";
         modalBackground.appendChild(modalWindow);
 
-        // Titel
         var title = document.createElement("h2");
         title.innerHTML = "Lehrgangsübersicht";
         modalWindow.appendChild(title);
 
-        // Button zum Abrufen der vorhandenen Lehrgänge
+        var buttonContainer = document.createElement("div");
+        buttonContainer.style.position = "absolute";
+        buttonContainer.style.top = "20px";
+        buttonContainer.style.right = "20px";
+        modalWindow.appendChild(buttonContainer);
+
+        var closeButton = document.createElement("button");
+        closeButton.innerHTML = "Schließen";
+        closeButton.style.marginRight = "10px";
+        closeButton.addEventListener("click", function() {
+            closeModal();
+        });
+        buttonContainer.appendChild(closeButton);
+
+        var exportButton = document.createElement("button");
+        exportButton.innerHTML = "Exportieren";
+        exportButton.disabled = true;
+        exportButton.addEventListener("click", function() {
+            exportTableToExcel('lehrgaengeTable', 'lehrgaenge.xlsx');
+        });
+        buttonContainer.appendChild(exportButton);
+
+        var loadingBar = document.createElement("div");
+        loadingBar.style.display = "none";
+        loadingBar.style.width = "100%";
+        loadingBar.style.height = "30px";
+        loadingBar.style.backgroundColor = "#ccc";
+        loadingBar.style.borderRadius = "15px";
+        loadingBar.style.overflow = "hidden";
+        loadingBar.innerHTML = '<div class="loading-bar"><div></div><div></div><div></div></div>';
+        modalWindow.appendChild(loadingBar);
+
+        var style = document.createElement('style');
+        style.innerHTML = `
+            .loading-bar {
+                display: flex;
+                justify-content: space-between;
+                width: 300%;
+                animation: loading 2s linear infinite;
+            }
+            .loading-bar div {
+                width: 10%;
+                height: 30px;
+                background-color: #4caf50;
+                border-radius: 15px;
+                margin-right: 10px;
+            }
+            @keyframes loading {
+                0% {transform: translateX(-100%);}
+                100% {transform: translateX(0%);}
+            }
+        `;
+        document.head.appendChild(style);
+
         var fetchButton = document.createElement("button");
         fetchButton.innerHTML = "Vorhandene Lehrgänge abrufen";
         fetchButton.style.marginBottom = "20px";
+        fetchButton.addEventListener("click", function() {
+            exportButton.disabled = true;
+            loadingBar.style.display = "block";
+            getLehrgaenge(lehrgaengeList, loadingBar, exportButton);
+        });
         modalWindow.appendChild(fetchButton);
 
         var lehrgaengeList = document.createElement("div");
         lehrgaengeList.id = "lehrgaengeList";
         modalWindow.appendChild(lehrgaengeList);
 
-        fetchButton.addEventListener("click", function() {
-            // console.log("Fetching existing courses..."); // Debugging-Meldung
-            getLehrgaenge(lehrgaengeList);
-        });
-
-        // Schließen-Button
-        var closeButton = document.createElement("button");
-        closeButton.innerHTML = "Schließen";
-        closeButton.style.marginTop = "20px";
-        closeButton.addEventListener("click", function() {
-            closeModal();
-        });
-        modalWindow.appendChild(closeButton);
-
-        // Export-Button
-        var exportButton = document.createElement("button");
-        exportButton.innerHTML = "Exportieren";
-        exportButton.style.marginTop = "20px";
-        exportButton.style.marginLeft = "10px";
-        exportButton.addEventListener("click", function() {
-            exportTableToExcel('lehrgaengeTable', 'lehrgaenge.xlsx');
-        });
-        modalWindow.appendChild(exportButton);
-
-        // Event-Listener zum Schließen des Modals
         modalBackground.addEventListener("click", function(event) {
             if (event.target == modalBackground) {
                 closeModal();
@@ -105,7 +132,6 @@
         });
     }
 
-    // Funktion zum Schließen des Modals
     function closeModal() {
         var modalBackground = document.getElementById("modalBackground");
         if (modalBackground) {
@@ -113,25 +139,19 @@
         }
     }
 
-    // Funktion zum Abrufen und Anzeigen der vorhandenen Lehrgänge des Personals
-    async function getLehrgaenge(container) {
-        container.innerHTML = ''; // Vorherigen Inhalt löschen
+    async function getLehrgaenge(container, loadingBar, exportButton) {
+        container.innerHTML = '';
 
         var lehrgaenge = [];
 
         try {
-            // Abrufen aller Wachen
             var response = await fetch('/api/buildings');
             if (!response.ok) {
                 throw new Error(`Network response was not ok for /api/buildings: ${response.statusText}`);
             }
             var buildings = await response.json();
-            // console.log("Buildings fetched:", buildings); // Debugging-Meldung
 
             for (let building of buildings) {
-                // console.log(`Processing building: ID=${building.id}, Name=${building.name}`); // Debugging-Meldung
-
-                // Abrufen des Personals der Wache von der neuen URL
                 let personalsResponse = await fetch(`/buildings/${building.id}/personals`);
                 if (!personalsResponse.ok) {
                     throw new Error(`Network response was not ok for /buildings/${building.id}/personals: ${personalsResponse.statusText}`);
@@ -140,8 +160,6 @@
                 let parser = new DOMParser();
                 let doc = parser.parseFromString(personalsHtml, 'text/html');
                 let personnelElements = doc.querySelectorAll('table#personal_table > tbody > tr');
-
-                // console.log(`Personnel for building ${building.id} fetched:`, personnelElements); // Debugging-Meldung
 
                 var IPersonal = Array.from(personnelElements).map(personElement => {
                     return Array.from(personElement.querySelector('td:nth-child(2)').textContent.split(',')).map(Education => Education.trim());
@@ -165,20 +183,16 @@
                     lehrgaenge.push({
                         wache: building.caption,
                         lehrgang: `${IStatistic[Statistic]}x ${Statistic}`,
-                        totalPersonnel: personnelElements.length, // Gesamtzahl des Personals hinzufügen
+                        totalPersonnel: personnelElements.length,
                         overAssigned: IStatistic[Statistic] > personnelElements.length
                     });
                 });
-
-                // console.log(`Statistics for building ${building.id}:`, IStatistic); // Debugging-Meldung
             }
         } catch (error) {
-            // console.error("Error fetching data:", error); // Debugging-Meldung
-            container.innerText = `Fehler beim Abrufen der Daten: ${error.message}`; // Fehleranzeige
+            container.innerText = `Fehler beim Abrufen der Daten: ${error.message}`;
+            loadingBar.style.display = "none";
             return;
         }
-
-        // console.log("Fetched courses:", lehrgaenge); // Debugging-Meldung
 
         if (lehrgaenge.length > 0) {
             var table = document.createElement("table");
@@ -212,9 +226,8 @@
                 var cellLehrgang = document.createElement("td");
                 cellLehrgang.innerText = lehrgang.lehrgang;
                 cellLehrgang.style.border = "1px solid black";
-                // WiP
                 if (lehrgang.overAssigned) {
-                    cellLehrgang.style.backgroundColor = "red"; // Hintergrundfarbe für überzähliges Personal
+                    cellLehrgang.style.backgroundColor = "red";
                 }
                 var cellTotalPersonnel = document.createElement("td");
                 cellTotalPersonnel.innerText = lehrgang.totalPersonnel;
@@ -230,15 +243,16 @@
         } else {
             container.innerText = "Keine Lehrgänge gefunden.";
         }
+
+        loadingBar.style.display = "none";
+        exportButton.disabled = false;
     }
 
-    // Funktion zum Exportieren der Tabelle als Excel-Datei
     function exportTableToExcel(tableID, filename = '') {
         var wb = XLSX.utils.book_new();
         var ws = XLSX.utils.table_to_sheet(document.getElementById(tableID));
         XLSX.utils.book_append_sheet(wb, ws, 'Lehrgaenge');
 
-        // Dateiname festlegen
         filename = filename ? filename : 'lehrgaenge.xlsx';
 
         XLSX.writeFile(wb, filename);
