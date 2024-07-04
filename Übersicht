@@ -4,7 +4,7 @@
 // @version      0.6
 // @description  Ein Script zur Anzeige vorhandener Lehrgänge im Leitstellenspiel
 // @author       MrGreenscreen
-// @match        https://www.leitstellenspiel.de/*
+// @match        https://www.leitstellenspiel.de/
 // @grant        none
 // @require      https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js
 // ==/UserScript==
